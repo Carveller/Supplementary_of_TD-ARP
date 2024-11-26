@@ -10,31 +10,24 @@ def create_network_with_basemap(center_lat=39.9332,
                               dist=500,
                               network_type='drive',
                               num_task_edges=20):
-    """
-    创建带有高德地图英文背景的路网可视化，包含随机选择的任务边
-    """
-    # 设置osmnx
+
     ox.config(use_cache=True, log_console=True)
     ox.settings.default_language = 'en'
     
-    # 下载路网数据并转换为无向图
     G = ox.graph_from_point((center_lat, center_lon), 
                            dist=dist,
                            network_type=network_type,
                            simplify=True)
-    
-    # 转换为无向图
+
     G = ox.utils_graph.get_undirected(G)
     
     print(f"Number of nodes: {len(G.nodes)}")
     print(f"Number of edges: {len(G.edges)}")
     
-    # 创建地图，使用高德地图英文版
     m = folium.Map(location=[center_lat, center_lon], 
                   zoom_start=16,
                   tiles=None)
-    
-    # 添加高德地图英文版图层
+
     folium.TileLayer(
         tiles='http://wprd04.is.autonavi.com/appmaptile?lang=en&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
         attr='© AutoNavi',
@@ -42,8 +35,7 @@ def create_network_with_basemap(center_lat=39.9332,
         control=True, 
         opacity=0.3
     ).add_to(m)
-    
-    # 添加节点
+
     for node, data in G.nodes(data=True):
         folium.CircleMarker(
             location=(data['y'], data['x']),
@@ -64,35 +56,30 @@ def create_network_with_basemap(center_lat=39.9332,
             tooltip=f'Node {node}'
         ).add_to(m)
     
-    # 随机选择任务边
     all_edges = list(G.edges(data=True))
-    # 选择较长的边作为候选任务边（长度排序后的前50%）
+
     sorted_edges = sorted(all_edges, key=lambda x: x[2].get('length', 0), reverse=True)
     candidate_edges = sorted_edges[:len(sorted_edges)//2]
     task_edges = random.sample(candidate_edges, min(num_task_edges, len(candidate_edges)))
     task_edge_pairs = set((u, v) for u, v, _ in task_edges)
-    
-    # 添加边（区分任务边和普通边）
+
     for u, v, data in G.edges(data=True):
         coords = [(G.nodes[u]['y'], G.nodes[u]['x']),
                  (G.nodes[v]['y'], G.nodes[v]['x'])]
         
-        # 判断是否为任务边
         is_task_edge = (u, v) in task_edge_pairs or (v, u) in task_edge_pairs
-        
-        # 设置边的样式
+
         if is_task_edge:
-            color = '#FF0000'  # 任务边使用红色
-            weight = 4.0      # 任务边更粗
-            opacity = 0.9     # 任务边更不透明
+            color = '#FF0000'  
+            weight = 4.0      
+            opacity = 0.9     
             edge_type = "Task Edge"
         else:
-            color = '#7B98E5'  # 普通边使用淡蓝色
-            weight = 3.0      # 普通边较细
-            opacity = 0.6     # 普通边较透明
+            color = '#7B98E5' 
+            weight = 3.0  
+            opacity = 0.6 
             edge_type = "Normal Edge"
-        
-        # 添加边到地图
+
         folium.PolyLine(
             coords,
             weight=weight,
@@ -106,8 +93,7 @@ def create_network_with_basemap(center_lat=39.9332,
             """,
             tooltip=f'Click for details'
         ).add_to(m)
-    
-    # 添加图例
+
     legend_html = '''
     <div style="
         position: fixed; 
@@ -129,23 +115,18 @@ def create_network_with_basemap(center_lat=39.9332,
     </div>
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
-    
-    # 添加全屏切换按钮
+
     plugins.Fullscreen().add_to(m)
-    
-    # 添加小地图
+
     minimap = plugins.MiniMap(zoom_level_offset=-5)
     m.add_child(minimap)
-    
-    # 保存地图
+
     m.save('network_map.html')
     
     return G, m, task_edge_pairs
 
 def adjust_network_size(G, target_nodes=100):
-    """
-    调整网络大小，尽量接近目标节点数
-    """
+
     if G.is_directed():
         G = G.to_undirected()
     
@@ -168,30 +149,24 @@ def adjust_network_size(G, target_nodes=100):
     return G
 
 def export_network_to_json_format(G, task_edge_pairs):
-    """
-    将网络转换为指定的JSON格式
-    """
-    # 1. 创建节点到索引的映射
+
     node_to_index = {node: i for i, node in enumerate(G.nodes())}
-    # 1. 收集所有节点的坐标
+
     node_coords = []
     for node in G.nodes():
         node_coords.append([
             G.nodes[node]['x'],  # longitude
             G.nodes[node]['y']   # latitude
         ])
-    
-    # 2. 收集所有边的信息
+
     edges_data = []
     for u, v, data in G.edges(data=True):
-        length = int(data.get('length', 1))  # 使用边的长度，如果没有则默认为1
+        length = int(data.get('length', 1)) 
         edges_data.append([node_to_index[u], node_to_index[v], float(length/1000)])
         edges_data.append([node_to_index[v], node_to_index[u], float(length/1000)])
-    
-    # 3. 将task_edge_pairs转换为列表格式
+
     task_edges_list = [[node_to_index[u], node_to_index[v]] for u, v in task_edge_pairs]
-    
-    # 4. 创建最终的JSON结构
+
     result = {
         "network_data": [
             node_coords,
@@ -207,19 +182,15 @@ def main():
     Main function to generate and visualize the network
     """
     try:
-        # 三里屯坐标
         center_lat, center_lon = 39.9332, 116.4554
         dist = 300
-        
-        # Create initial network
+
         G, m, task_edges = create_network_with_basemap(center_lat, center_lon, dist)
-        
-        # 如果节点太少，增加距离直到节点数在80-120之间
+
         while len(G.nodes) < 100:
             dist += 50
             G, m, task_edges = create_network_with_basemap(center_lat, center_lon, dist)
-            
-        # 如果节点数超过120，再调整网络大小
+
         if len(G.nodes) > 120:
             G = adjust_network_size(G, target_nodes=100)
             G, m, task_edges = create_network_with_basemap(center_lat, center_lon, dist)
@@ -228,8 +199,7 @@ def main():
         print(f"Number of nodes: {len(G.nodes)}")
         print(f"Number of edges: {len(G.edges)}")
         print(f"Number of task edges: {len(task_edges)}")
-        
-        # 转换为JSON格式并保存
+
         json_data = export_network_to_json_format(G, task_edges)
         import json
         with open('network_data.json', 'w') as f:
